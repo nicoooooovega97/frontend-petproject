@@ -3,7 +3,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Button from "../ui/Button";
+import Button from "../ui/button";
 
 export default function RegisterForm() {
   const [formData, setFormData] = useState({

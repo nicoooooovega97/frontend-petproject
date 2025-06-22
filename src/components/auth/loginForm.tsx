@@ -1,6 +1,8 @@
 'use client';
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useMutation } from '@apollo/client';
+import { LOGIN_MUTATION } from '@/graphql/auth/mutations';
 import Button from "../ui/button";
 import Link from "next/link";
 import { FiMail, FiLock, FiAlertCircle, FiLoader, FiEye, FiEyeOff } from "react-icons/fi";
@@ -11,15 +13,15 @@ export default function LoginForm() {
     password: ""
   });
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-
-  // Credenciales válidas (deberían venir de un backend en producción)
-  const validCredentials = {
-    email: "nicoveegaa@gmail.com",
-    password: "andres555"
-  };
+  
+  // Integración de Apollo Mutation
+  const [login, { loading }] = useMutation(LOGIN_MUTATION, {
+    onError: (err) => {
+      setError(err.message);
+    }
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -32,29 +34,27 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
     try {
-      // Simular tiempo de respuesta de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { data } = await login({
+        variables: {
+          email: formData.email,
+          password: formData.password
+        }
+      });
 
-      // Validación (en producción sería una llamada API)
-      if (formData.email !== validCredentials.email || 
-          formData.password !== validCredentials.password) {
-        throw new Error("Credenciales incorrectas");
+      if (data?.login?.token) {
+        localStorage.setItem("authToken", data.login.token);
+        // Opcional: Guardar información adicional del usuario
+        localStorage.setItem("userData", JSON.stringify(data.login.user));
+        router.push("/user");
       }
-
-      // Guardar autenticación (en producción usarías cookies/JWT)
-      localStorage.setItem("isAuthenticated", "true");
-      router.push("/user");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al iniciar sesión");
-    } finally {
-      setLoading(false);
+      console.error("Login error:", err);
+      // El error ya se maneja en onError de useMutation
     }
   };
 
-  // Validación mejorada del formulario
   const isFormValid = formData.email.includes("@") && 
                      formData.email.includes(".") && 
                      formData.password.length >= 6;
