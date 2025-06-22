@@ -1,94 +1,65 @@
 'use client';
-
+import { useState } from 'react';
+import { useQuery, useMutation } from '@apollo/client';
 import PetCard from "@/components/user/petCard";
 import ClinicalHistory from "@/components/medical/clinicalHistory";
 import Link from "next/link";
-import { MedicalEntry } from "@/types/medical";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { GET_MY_PETS, GET_PET_DETAILS } from '@/graphql/pets/queries';
+import { DELETE_PET_MUTATION } from '@/graphql/pets/mutations';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function PetDetailsPage() {
-  // Datos de ejemplo de mascotas
-  const petsData = [
-    {
-      id: '1',
-      name: 'Max',
-      breed: 'Golden Retriever',
-      age: 3,
-      gender: 'MALE',
-      healthStatus: 'HEALTHY',
-      photoUrl: 'https://images.unsplash.com/photo-1633722715463-d30f4f325e24?w=600',
-      species: 'Perro',
-      birthDate: '2020-05-15',
-      color: 'Dorado',
-      coatType: 'Largo y ondulado',
-      ownerName: 'Juan Pérez' // Nuevo campo añadido
-    },
-    {
-      id: '2',
-      name: 'Luna',
-      breed: 'Siamés',
-      age: 2,
-      gender: 'FEMALE',
-      healthStatus: 'HEALTHY',
-      photoUrl: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=600',
-      species: 'Gato',
-      birthDate: '2021-08-20',
-      color: 'Crema con puntos oscuros',
-      coatType: 'Corto',
-      ownerName: 'María García' // Nuevo campo añadido
-    },
-    {
-      id: '3',
-      name: 'Rocky',
-      breed: 'Bulldog Francés',
-      age: 5,
-      gender: 'MALE',
-      healthStatus: 'TREATMENT',
-      photoUrl: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600',
-      species: 'Perro',
-      birthDate: '2018-11-10',
-      color: 'Atigrado',
-      coatType: 'Corto y liso',
-      ownerName: 'Carlos López' // Nuevo campo añadido
-    }
-  ];
+  const router = useRouter();
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
 
-  // Historial médico de ejemplo (sin cambios)
-  const medicalData: Record<string, MedicalEntry[]> = {
-    '1': [
-      {
-        id: '101',
-        petId: '1',
-        date: '2023-10-15T10:30:00Z',
-        diagnosis: 'Control de vacunación anual',
-        treatment: 'Vacuna multivalente aplicada. Próximo control en 1 año.',
-        vet: 'Dr. Rodríguez'
-      },
-      {
-        id: '102',
-        petId: '1',
-        date: '2023-08-20T16:45:00Z',
-        diagnosis: 'Dermatitis alérgica',
-        treatment: 'Antihistamínicos cada 12h por 7 días. Champú medicado.',
-        vet: 'Dra. Martínez'
-      }
-    ],
-    '2': [
-      {
-        id: '201',
-        petId: '2',
-        date: '2023-11-05T09:15:00Z',
-        diagnosis: 'Esterilización',
-        treatment: 'Postoperatorio normal. Medicación analgésica por 5 días.',
-        vet: 'Dr. González'
-      }
-    ],
-    '3': [] // Rocky no tiene historial
+  // 1. Obtener lista de mascotas
+  const { data: petsData, loading: petsLoading, error: petsError } = useQuery(GET_MY_PETS);
+
+  // 2. Obtener detalles de mascota seleccionada
+  const { data: petData, loading: petLoading } = useQuery(GET_PET_DETAILS, {
+    variables: { id: selectedPetId },
+    skip: !selectedPetId
+  });
+
+  // 3. Mutación para eliminar mascota
+  const [deletePet] = useMutation(DELETE_PET_MUTATION, {
+    refetchQueries: [{ query: GET_MY_PETS }],
+    onCompleted: () => {
+      setSelectedPetId(null);
+      router.refresh();
+    }
+  });
+
+  const handleDeletePet = async (petId: string) => {
+    if (confirm('¿Estás seguro de eliminar esta mascota? Esta acción no se puede deshacer.')) {
+      await deletePet({ variables: { id: petId } });
+    }
   };
 
-  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
-  const selectedPet = selectedPetId ? petsData.find(pet => pet.id === selectedPetId) : null;
-  const medicalEntries = selectedPetId ? medicalData[selectedPetId] || [] : [];
+  if (petsLoading) return (
+    <div className="min-h-screen bg-[#00527c] flex items-center justify-center">
+      <LoadingSpinner size="lg" />
+    </div>
+  );
+
+  if (petsError) return (
+    <div className="min-h-screen bg-[#00527c] flex items-center justify-center">
+      <div className="bg-white p-6 rounded-lg max-w-md text-center">
+        <h2 className="text-xl font-bold text-red-600 mb-4">Error al cargar mascotas</h2>
+        <p className="mb-4">{petsError.message}</p>
+        <button 
+          onClick={() => router.refresh()}
+          className="bg-[#00527c] text-white px-4 py-2 rounded-lg"
+        >
+          Reintentar
+        </button>
+      </div>
+    </div>
+  );
+
+  const pets = petsData?.myPets || [];
+  const selectedPet = petData?.pet;
 
   return (
     <div className="min-h-screen bg-[#00527c]">
@@ -110,7 +81,7 @@ export default function PetDetailsPage() {
 
           {/* Lista de todas las mascotas */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {petsData.map(pet => (
+            {pets.map(pet => (
               <div key={pet.id} className="border rounded-lg overflow-hidden shadow-sm">
                 <PetCard pet={pet} />
                 <div className="p-4 bg-gray-50">
@@ -126,98 +97,99 @@ export default function PetDetailsPage() {
           </div>
 
           {/* Detalles de la mascota seleccionada */}
-          {selectedPet && (
+          {selectedPetId && (
             <div className="mt-8 pt-8 border-t">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold">Detalles de {selectedPet.name}</h2>
-                <button 
-                  onClick={() => setSelectedPetId(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  Cerrar detalles
-                </button>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* Información básica */}
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-4">Información básica</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Dueño/a</p>
-                      <p className="font-medium">{selectedPet.ownerName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Especie</p>
-                      <p className="font-medium">{selectedPet.species}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Raza</p>
-                      <p className="font-medium">{selectedPet.breed}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Edad</p>
-                      <p className="font-medium">{selectedPet.age} años</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Género</p>
-                      <p className="font-medium">
-                        {selectedPet.gender === 'MALE' ? 'Macho' : 'Hembra'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Estado de salud</p>
-                      <p className="font-medium">
-                        {selectedPet.healthStatus === 'HEALTHY' ? 'Saludable' : 'En tratamiento'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Color</p>
-                      <p className="font-medium">{selectedPet.color}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Tipo de pelaje</p>
-                      <p className="font-medium">{selectedPet.coatType}</p>
-                    </div>
-                  </div>
+              {petLoading ? (
+                <div className="flex justify-center py-12">
+                  <LoadingSpinner />
                 </div>
-
-                {/* Historial clínico */}
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Historial Clínico</h3>
-                    <Link 
-                      href={`/user/clinical-history/addEntry?petId=${selectedPet.id}`}
-                      className="bg-[#00527c] text-white px-4 py-2 rounded-lg hover:bg-[#003a5a] transition-colors"
+              ) : selectedPet ? (
+                <>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold">Detalles de {selectedPet.name}</h2>
+                    <button 
+                      onClick={() => setSelectedPetId(null)}
+                      className="text-gray-500 hover:text-gray-700"
                     >
-                      Nuevo Registro Médico
-                    </Link>
+                      Cerrar detalles
+                    </button>
                   </div>
-                  {medicalEntries.length > 0 ? (
-                    <ClinicalHistory 
-                      petId={selectedPet.id}
-                      entries={medicalEntries} 
-                    />
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500">Esta mascota no tiene registros médicos.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Botones de acción */}
-              <div className="flex justify-end gap-4 pt-6 mt-6 border-t">
-                <Link
-                  href={`/user/gestion-mascotas/editPet/${selectedPet.id}`}
-                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Editar Mascota
-                </Link>
-                <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors">
-                  Eliminar Mascota
-                </button>
-              </div>
+                  <div className="grid md:grid-cols-2 gap-8">
+                    {/* Información básica */}
+                    <div className="bg-gray-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4">Información básica</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500">Dueño/a</p>
+                          <p className="font-medium">{selectedPet.owner?.name || 'No especificado'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Especie</p>
+                          <p className="font-medium">{selectedPet.species}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Raza</p>
+                          <p className="font-medium">{selectedPet.breed}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Edad</p>
+                          <p className="font-medium">{selectedPet.age} años</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Género</p>
+                          <p className="font-medium">
+                            {selectedPet.gender === 'MALE' ? 'Macho' : 'Hembra'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Estado de salud</p>
+                          <p className="font-medium">
+                            {selectedPet.healthStatus === 'HEALTHY' ? 'Saludable' : 'En tratamiento'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Historial clínico */}
+                    <div className="bg-gray-50 p-6 rounded-lg">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">Historial Clínico</h3>
+                        <Link 
+                          href={`/user/clinical-history/addEntry?petId=${selectedPet.id}`}
+                          className="bg-[#00527c] text-white px-4 py-2 rounded-lg hover:bg-[#003a5a] transition-colors"
+                        >
+                          Nuevo Registro Médico
+                        </Link>
+                      </div>
+                      <ClinicalHistory 
+                        petId={selectedPet.id}
+                        entries={selectedPet.medicalRecords || []} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div className="flex justify-end gap-4 pt-6 mt-6 border-t">
+                    <Link
+                      href={`/user/gestion-mascotas/editPet/${selectedPet.id}`}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Editar Mascota
+                    </Link>
+                    <button 
+                      onClick={() => handleDeletePet(selectedPet.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Eliminar Mascota
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No se encontraron detalles para esta mascota.</p>
+                </div>
+              )}
             </div>               
           )}
         </div>

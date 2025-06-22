@@ -1,76 +1,99 @@
 // src/components/medical/MedicalEntryForm.tsx
 'use client';
+
 import { useState } from "react";
+import { useMutation } from "@apollo/client";
+import { useRouter } from "next/navigation";
 import Button from "../ui/button";
+import { CREATE_MEDICAL_RECORD } from "@/graphql/medical/mutations";
+import { MedicalRecordType } from "@/types/medical";
+import LoadingSpinner from "../ui/LoadingSpinner";
+import ErrorMessage from "../ui/ErrorMessage";
 
-type EntryType = 'consulta' | 'vacuna' | 'cirugia';
+type EntryType = MedicalRecordType;
 
-type BaseEntry = {
+interface BaseEntry {
   date: string;
-  petName: string;
-};
+  petId: string;
+  vetId: string;
+  notes?: string;
+}
 
-type ConsultaEntry = BaseEntry & {
-  type: 'consulta';
+interface ConsultaEntry extends BaseEntry {
+  type: 'CONSULTATION';
   diagnosis: string;
   treatment: string;
-};
+}
 
-type VacunaEntry = BaseEntry & {
-  type: 'vacuna';
+interface VacunaEntry extends BaseEntry {
+  type: 'VACCINATION';
   vaccineType: string;
   nextVaccinationDate: string;
-};
+}
 
-type CirugiaEntry = BaseEntry & {
-  type: 'cirugia';
+interface CirugiaEntry extends BaseEntry {
+  type: 'SURGERY';
   diagnosis: string;
   surgeryType: string;
-  observations: string;
-};
+}
 
 type MedicalEntry = ConsultaEntry | VacunaEntry | CirugiaEntry;
 
-export default function MedicalEntryForm() {
-  const [entryType, setEntryType] = useState<EntryType>('consulta');
+interface MedicalEntryFormProps {
+  petId: string;
+  vetId: string;
+  onSuccess?: () => void;
+}
+
+export default function MedicalEntryForm({ petId, vetId, onSuccess }: MedicalEntryFormProps) {
+  const router = useRouter();
+  const [entryType, setEntryType] = useState<EntryType>('CONSULTATION');
   const [entry, setEntry] = useState<MedicalEntry>({
-    type: 'consulta',
+    type: 'CONSULTATION',
     date: new Date().toISOString().split('T')[0],
-    petName: '',
+    petId,
+    vetId,
     diagnosis: '',
     treatment: ''
   } as ConsultaEntry);
 
+  const [createMedicalRecord, { loading, error }] = useMutation(CREATE_MEDICAL_RECORD, {
+    onCompleted: () => {
+      onSuccess ? onSuccess() : router.push(`/user/clinical-history?petId=${petId}`);
+    },
+    refetchQueries: ['GetMedicalRecords']
+  });
+
   const handleTypeChange = (type: EntryType) => {
     setEntryType(type);
-    // Resetear el formulario al cambiar de tipo
     const base = {
       date: entry.date,
-      petName: entry.petName,
+      petId,
+      vetId,
+      notes: entry.notes,
       type
     };
     
     switch(type) {
-      case 'consulta':
+      case 'CONSULTATION':
         setEntry({
           ...base,
           diagnosis: '',
           treatment: ''
         } as ConsultaEntry);
         break;
-      case 'vacuna':
+      case 'VACCINATION':
         setEntry({
           ...base,
           vaccineType: '',
           nextVaccinationDate: ''
         } as VacunaEntry);
         break;
-      case 'cirugia':
+      case 'SURGERY':
         setEntry({
           ...base,
           diagnosis: '',
-          surgeryType: '',
-          observations: ''
+          surgeryType: ''
         } as CirugiaEntry);
         break;
     }
@@ -84,33 +107,61 @@ export default function MedicalEntryForm() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Nueva entrada médica:", entry);
-    // Lógica para guardar según el tipo
+    
+    try {
+      await createMedicalRecord({
+        variables: {
+          input: {
+            ...entry,
+            date: new Date(entry.date).toISOString()
+          }
+        }
+      });
+    } catch (err) {
+      console.error("Error creating medical record:", err);
+    }
   };
+
+  if (loading) return <LoadingSpinner size="lg" />;
+  if (error) return <ErrorMessage message={error.message} onRetry={() => window.location.reload()} />;
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
+      <h2 className="text-xl font-bold text-gray-800 mb-6">Nuevo Registro Médico</h2>
+      
       <div className="flex border-b mb-6">
         <button
           type="button"
-          onClick={() => handleTypeChange('consulta')}
-          className={`px-4 py-2 font-medium ${entryType === 'consulta' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+          onClick={() => handleTypeChange('CONSULTATION')}
+          className={`px-4 py-2 font-medium ${
+            entryType === 'CONSULTATION' 
+              ? 'text-blue-600 border-b-2 border-blue-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
         >
           Consulta
         </button>
         <button
           type="button"
-          onClick={() => handleTypeChange('vacuna')}
-          className={`px-4 py-2 font-medium ${entryType === 'vacuna' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+          onClick={() => handleTypeChange('VACCINATION')}
+          className={`px-4 py-2 font-medium ${
+            entryType === 'VACCINATION' 
+              ? 'text-blue-600 border-b-2 border-blue-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
         >
           Vacuna
         </button>
         <button
           type="button"
-          onClick={() => handleTypeChange('cirugia')}
-          className={`px-4 py-2 font-medium ${entryType === 'cirugia' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+          onClick={() => handleTypeChange('SURGERY')}
+          className={`px-4 py-2 font-medium ${
+            entryType === 'SURGERY' 
+              ? 'text-blue-600 border-b-2 border-blue-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
         >
           Cirugía
         </button>
@@ -119,49 +170,38 @@ export default function MedicalEntryForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-gray-700 mb-1">Fecha</label>
+            <label className="block text-gray-700 mb-1">Fecha *</label>
             <input
               type="date"
               name="date"
               value={entry.date}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-gray-700 mb-1">Nombre de la Mascota</label>
-            <input
-              type="text"
-              name="petName"
-              value={entry.petName}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
         </div>
 
-        {entryType === 'consulta' && (
+        {entryType === 'CONSULTATION' && (
           <>
             <div>
-              <label className="block text-gray-700 mb-1">Diagnóstico</label>
+              <label className="block text-gray-700 mb-1">Diagnóstico *</label>
               <textarea
                 name="diagnosis"
                 value={(entry as ConsultaEntry).diagnosis}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={3}
                 required
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-1">Tratamiento</label>
+              <label className="block text-gray-700 mb-1">Tratamiento *</label>
               <textarea
                 name="treatment"
                 value={(entry as ConsultaEntry).treatment}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={3}
                 required
               />
@@ -169,74 +209,87 @@ export default function MedicalEntryForm() {
           </>
         )}
 
-        {entryType === 'vacuna' && (
+        {entryType === 'VACCINATION' && (
           <>
             <div>
-              <label className="block text-gray-700 mb-1">Tipo de Vacuna</label>
+              <label className="block text-gray-700 mb-1">Tipo de Vacuna *</label>
               <input
                 type="text"
                 name="vaccineType"
                 value={(entry as VacunaEntry).vaccineType}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-1">Próxima Vacunación</label>
+              <label className="block text-gray-700 mb-1">Próxima Vacunación *</label>
               <input
                 type="date"
                 name="nextVaccinationDate"
                 value={(entry as VacunaEntry).nextVaccinationDate}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
           </>
         )}
 
-        {entryType === 'cirugia' && (
+        {entryType === 'SURGERY' && (
           <>
             <div>
-              <label className="block text-gray-700 mb-1">Diagnóstico</label>
+              <label className="block text-gray-700 mb-1">Diagnóstico *</label>
               <textarea
                 name="diagnosis"
                 value={(entry as CirugiaEntry).diagnosis}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={2}
                 required
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-1">Tipo de Cirugía</label>
+              <label className="block text-gray-700 mb-1">Tipo de Cirugía *</label>
               <input
                 type="text"
                 name="surgeryType"
                 value={(entry as CirugiaEntry).surgeryType}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-gray-700 mb-1">Observaciones</label>
-              <textarea
-                name="observations"
-                value={(entry as CirugiaEntry).observations}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded"
-                rows={3}
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
           </>
         )}
 
-        <Button type="submit" className="bg-blue-600 hover:bg-blue-700 mt-4">
-          Guardar Entrada
-        </Button>
+        <div>
+          <label className="block text-gray-700 mb-1">Notas Adicionales</label>
+          <textarea
+            name="notes"
+            value={entry.notes || ''}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows={2}
+          />
+        </div>
+
+        <div className="flex justify-end gap-4 pt-4">
+          <Button 
+            type="button" 
+            variant="outline"
+            onClick={() => router.back()}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            type="submit" 
+            variant="primary"
+            disabled={loading}
+          >
+            {loading ? 'Guardando...' : 'Guardar Registro'}
+          </Button>
+        </div>
       </form>
     </div>
   );

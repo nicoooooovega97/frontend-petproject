@@ -1,107 +1,134 @@
 // src/components/medical/ClinicalHistory.tsx
-import { MedicalEntry } from "@/types/medical";
+'use client';
+import { useQuery } from '@apollo/client';
 import Link from "next/link";
+import { GET_MEDICAL_RECORDS } from '@/graphql/medical/queries';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorMessage from '@/components/ui/ErrorMessage';
+import { MedicalRecord } from '@/types/medical';
 
 interface ClinicalHistoryProps {
-  petId?: string; // Opcional: filtrar por mascota
-  entries: MedicalEntry[];
+  petId: string;
+  showAddButton?: boolean;
 }
 
-export default function ClinicalHistory({ petId, entries }: ClinicalHistoryProps) {
-  // Datos de ejemplo consistentes con las mascotas del PetCard
-  const sampleEntries: MedicalEntry[] = [
-    {
-      id: '1',
-      petId: '1', // Max (Golden Retriever)
-      date: '2023-10-15T10:30:00Z',
-      diagnosis: 'Control de vacunación anual',
-      treatment: 'Vacuna multivalente aplicada. Próximo control en 1 año.',
-      vet: 'Dr. Rodríguez',
-      notes: 'El paciente se comportó excelentemente durante el procedimiento'
-    },
-    {
-      id: '2',
-      petId: '1', // Max
-      date: '2023-08-20T16:45:00Z',
-      diagnosis: 'Dermatitis alérgica',
-      treatment: 'Antihistamínicos cada 12h por 7 días. Champú medicado.',
-      vet: 'Dra. Martínez',
-      notes: 'Revisar posible alergia alimentaria en próxima visita'
-    },
-    {
-      id: '3',
-      petId: '2', // Luna (Siamés)
-      date: '2023-11-05T09:15:00Z',
-      diagnosis: 'Esterilización',
-      treatment: 'Postoperatorio normal. Medicación analgésica por 5 días.',
-      vet: 'Dr. González',
-      notes: 'Reposo absoluto por 10 días. Control de puntos en 1 semana'
-    }
-  ];
+export default function ClinicalHistory({ 
+  petId, 
+  showAddButton = true 
+}: ClinicalHistoryProps) {
+  const { data, loading, error } = useQuery(GET_MEDICAL_RECORDS, {
+    variables: { petId },
+    fetchPolicy: 'cache-and-network',
+    pollInterval: 30000 // Actualiza cada 30 segundos
+  });
 
-  // Usa los entries prop o los de ejemplo
-  const displayedEntries = entries.length > 0 ? entries : sampleEntries;
-  const filteredEntries = petId 
-    ? displayedEntries.filter(entry => entry.petId === petId) 
-    : displayedEntries;
+  const entries = data?.medicalRecords || [];
+
+  if (loading) return (
+    <div className="bg-white rounded-lg p-6 shadow-md">
+      <div className="flex justify-center py-8">
+        <LoadingSpinner size="md" />
+        <span className="sr-only">Cargando historial médico...</span>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="bg-white rounded-lg p-6 shadow-md">
+      <ErrorMessage 
+        title="Error al cargar historial médico"
+        message={error.message}
+        onRetry={() => window.location.reload()}
+      />
+    </div>
+  );
 
   return (
     <div className="bg-white rounded-lg p-6 shadow-md">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">
           Historial Clínico
-          {petId && <span className="text-lg font-normal text-gray-600 ml-2">(Mascota ID: {petId})</span>}
         </h2>
+        
+        {showAddButton && (
+          <Link
+            href={`/user/clinical-history/addEntry?petId=${petId}`}
+            className="bg-[#00527c] text-white px-4 py-2 rounded hover:bg-[#003d5a] flex items-center transition-colors"
+            aria-label="Añadir nuevo registro médico"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Nuevo Registro
+          </Link>
+        )}
       </div>
 
-      {filteredEntries.length === 0 ? (
-        <div className="bg-blue-50 p-6 rounded-lg text-center">
-          <p className="text-lg text-blue-800">No hay registros médicos</p>
+      {entries.length === 0 ? (
+        <div className="bg-blue-50 p-8 rounded-lg text-center">
+          <p className="text-lg text-blue-800 mb-4">No hay registros médicos</p>
+          {showAddButton && (
+            <Link
+              href={`/user/clinical-history/addEntry?petId=${petId}`}
+              className="inline-block bg-[#00527c] text-white px-4 py-2 rounded-lg hover:bg-[#003d5a] transition-colors"
+            >
+              Crear primer registro
+            </Link>
+          )}
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredEntries.map((entry) => (
-            <div 
+        <div className="space-y-4" role="list">
+          {entries.map((entry: MedicalRecord) => (
+            <article 
               key={entry.id} 
               className="border-l-4 border-[#00527c] bg-gray-50 p-5 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-labelledby={`record-${entry.id}-title`}
             >
-              <div className="flex justify-between items-start">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  {new Date(entry.date).toLocaleDateString('es-ES', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric'
-                  })}
+              <header className="flex justify-between items-start">
+                <h3 
+                  id={`record-${entry.id}-title`}
+                  className="text-lg font-semibold text-gray-800"
+                >
+                  <time dateTime={entry.date}>
+                    {new Date(entry.date).toLocaleDateString('es-ES', {
+                      day: '2-digit',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </time>
                 </h3>
                 <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
                   {entry.vet}
                 </span>
-              </div>
+              </header>
               
               <div className="mt-3">
-                <p className="font-medium text-gray-700">Diagnóstico:</p>
+                <h4 className="font-medium text-gray-700">Diagnóstico:</h4>
                 <p className="text-gray-700 ml-2">{entry.diagnosis}</p>
               </div>
               
               <div className="mt-2">
-                <p className="font-medium text-gray-700">Tratamiento:</p>
+                <h4 className="font-medium text-gray-700">Tratamiento:</h4>
                 <p className="text-gray-700 ml-2">{entry.treatment}</p>
               </div>
               
               {entry.notes && (
                 <div className="mt-2">
-                  <p className="font-medium text-gray-700">Notas:</p>
+                  <h4 className="font-medium text-gray-700">Notas:</h4>
                   <p className="text-gray-600 text-sm ml-2">{entry.notes}</p>
                 </div>
               )}
               
-              <Link
-                href={`/user/clinical-history/editEntry/${entry.id}`}
-                className="inline-block mt-3 text-[#00527c] hover:underline text-sm"
-              >
-                Editar registro →
-              </Link>
-            </div>
+              <footer className="flex justify-end gap-2 mt-3">
+                <Link
+                  href={`/user/clinical-history/editEntry/${entry.id}`}
+                  className="text-[#00527c] hover:underline text-sm"
+                  aria-label={`Editar registro del ${new Date(entry.date).toLocaleDateString()}`}
+                >
+                  Editar →
+                </Link>
+              </footer>
+            </article>
           ))}
         </div>
       )}

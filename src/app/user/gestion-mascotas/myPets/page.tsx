@@ -1,40 +1,44 @@
+'use client';
+import { useQuery } from '@apollo/client';
 import PetCard from "@/components/user/petCard";
 import Link from "next/link";
+import { GET_MY_PETS } from '@/graphql/pets/queries';
 
 export default function MyPetsPage() {
-  // Datos de ejemplo que cumplen con la interfaz Pet
-  const pets = [
-    {
-      id: '1',
-      name: 'Max',
-      breed: 'Golden Retriever',
-      age: 3,
-      gender: 'MALE',
-      healthStatus: 'HEALTHY',
-      photoUrl: 'https://images.unsplash.com/photo-1633722715463-d30f4f325e24?w=600',
-      ownerName: 'Juan Pérez' // Nuevo campo añadido
-    },
-    {
-      id: '2',
-      name: 'Luna',
-      breed: 'Siamés',
-      age: 2,
-      gender: 'FEMALE',
-      healthStatus: 'HEALTHY',
-      photoUrl: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=600',
-      ownerName: 'María García' // Nuevo campo añadido
-    },
-    {
-      id: '3',
-      name: 'Rocky',
-      breed: 'Bulldog Francés',
-      age: 5,
-      gender: 'MALE',
-      healthStatus: 'TREATMENT',
-      photoUrl: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600',
-      ownerName: 'Carlos López' // Nuevo campo añadido
-    }
-  ];
+  // 1. Obtener mascotas desde GraphQL
+  const { data, loading, error } = useQuery(GET_MY_PETS, {
+    fetchPolicy: 'cache-and-network'
+  });
+
+  // 2. Manejar estados de carga y error
+  if (loading) return (
+    <div className="min-h-screen bg-[#00527c]">
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-white rounded-lg p-6">
+          <div className="animate-pulse space-y-6">
+            <div className="h-10 bg-gray-200 rounded w-1/4"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-gray-100 rounded-lg h-64"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen bg-[#00527c]">
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-white rounded-lg p-6 text-red-500">
+          Error al cargar mascotas: {error.message}
+        </div>
+      </div>
+    </div>
+  );
+
+  const pets = data?.myPets || [];
 
   return (
     <div className="min-h-screen bg-[#00527c]">
@@ -54,15 +58,18 @@ export default function MyPetsPage() {
             <h1 className="text-3xl font-bold text-gray-800">Mis Mascotas</h1>
             <Link 
               href="/user/gestion-mascotas/addPet" 
-              className="bg-[#00527c] text-white px-4 py-2 rounded-lg hover:bg-[#003a5a] transition-colors"
+              className="bg-[#00527c] text-white px-4 py-2 rounded-lg hover:bg-[#003a5a] transition-colors flex items-center"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
               Añadir mascota
             </Link>
           </div>
           
           {pets.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pets.map((pet) => (
+              {pets.map((pet: any) => (
                 <PetCard key={pet.id} pet={pet} />
               ))}
             </div>

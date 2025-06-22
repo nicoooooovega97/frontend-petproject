@@ -1,23 +1,52 @@
+// src/app/(user)/profile/page.tsx
+'use client';
+import { useQuery } from '@apollo/client';
 import ProfileCard from "@/components/user/profileCard";
 import Link from "next/link";
+import { GET_USER_PROFILE } from '@/graphql/user/mutations';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function ProfilePage() {
+  const { data, loading, error } = useQuery(GET_USER_PROFILE, {
+    fetchPolicy: 'cache-and-network'
+  });
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#00527C]">
+      <LoadingSpinner size="lg" />
+      <span className="sr-only">Cargando perfil...</span>
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#00527C] px-4">
+      <div className="bg-white p-6 rounded-lg shadow-md text-center max-w-md w-full">
+        <h2 className="text-xl font-bold text-red-600 mb-4">Error al cargar perfil</h2>
+        <p className="text-gray-700 mb-4">{error.message}</p>
+        <Link 
+          href="/user/" 
+          className="inline-block bg-[#00527C] text-white py-2 px-4 rounded-md hover:bg-[#003d5a] transition"
+        >
+          Volver al dashboard
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center px-4 relative"
-      style={{ backgroundColor: '#00527C' }}
-    >
-      {/* Botón Volver */}
+    <div className="min-h-screen flex items-center justify-center px-4 relative bg-[#00527C]">
       <Link 
         href="/user/" 
-        className="absolute top-4 left-4 bg-white py-2 px-4 rounded-md shadow hover:bg-gray-100 transition duration-200"
-        style={{ color: '#00527C' }}
+        className="absolute top-4 left-4 bg-white py-2 px-4 rounded-md shadow hover:bg-gray-100 transition duration-200 flex items-center text-[#00527C]"
       >
-        Volver atrás
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+        </svg>
+        Volver
       </Link>
       
       <div className="w-full max-w-md">
-        <ProfileCard />
+        <ProfileCard userData={data.me} />
       </div>
     </div>
   );

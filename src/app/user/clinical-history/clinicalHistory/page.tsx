@@ -1,33 +1,13 @@
 // src/app/(user)/clinical-history/clinicalHistory/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import ClinicalHistory from '@/components/medical/clinicalHistory';
+import { useParams } from 'next/navigation';
+import Link from "next/link";
+
 
 export default function ClinicalHistoryPage() {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Replace with your actual API endpoint
-        const response = await fetch('/api/clinical-history');
-        if (!response.ok) {
-          throw new Error('Failed to fetch clinical history');
-        }
-        const data = await response.json();
-        setEntries(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const { id: petId } = useParams();
 
   return (
     <div className="min-h-screen bg-[#00527c]">
@@ -42,26 +22,7 @@ export default function ClinicalHistoryPage() {
           Volver atrás
         </Link>
         
-        <div className="bg-white rounded-lg p-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6">Historial Clínico</h1>
-          
-          {loading ? (
-            <p>Cargando historial...</p>
-          ) : error ? (
-            <div className="text-red-500">{error}</div>
-          ) : entries.length === 0 ? (
-            <p>No hay registros clínicos disponibles</p>
-          ) : (
-            <div className="space-y-4">
-              {entries.map((entry, index) => (
-                <div key={index} className="border-b border-gray-200 pb-4">
-                  <h3 className="font-medium">{entry.date} - {entry.procedure}</h3>
-                  <p className="text-gray-600">{entry.notes}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <ClinicalHistory petId={petId as string} showAddButton={true} />
       </div>
     </div>
   );
