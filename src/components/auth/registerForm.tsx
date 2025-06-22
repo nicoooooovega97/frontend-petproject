@@ -4,6 +4,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Button from "../ui/button";
+import { useMutation } from "@apollo/client";
+import { REGISTER_USER } from '@/graphql/auth/mutations';
+import { toast } from 'react-hot-toast';
 
 export default function RegisterForm() {
   const [formData, setFormData] = useState({
@@ -16,6 +19,26 @@ export default function RegisterForm() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const router = useRouter();
+
+  const [registerUser, { loading }] = useMutation(REGISTER_USER, {
+    onCompleted: (data) => {
+      if (data.registerUser.success) {
+        // Guardar el token directamente si viene en la respuesta
+        if (data.registerUser.token && typeof window !== 'undefined') {
+          localStorage.setItem('token', data.registerUser.token);
+        }
+        
+        toast.success('¡Registro exitoso! Redirigiendo...');
+        router.push("/dashboard");
+      } else {
+        toast.error(data.registerUser.message || 'Error en el registro');
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Error al conectar con el servidor');
+      console.error("Registration error:", error);
+    }
+  });
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -53,11 +76,25 @@ export default function RegisterForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      console.log("Registro exitoso:", formData);
-      router.push("/login");
+    
+    if (!validateForm()) return;
+    
+    try {
+      await registerUser({
+        variables: {
+          input: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            email: formData.email,
+            password: formData.password,
+            birthDate: formData.birthDate
+          }
+        }
+      });
+    } catch (error) {
+      // Los errores ya se manejan en onError
     }
   };
 
@@ -67,6 +104,15 @@ export default function RegisterForm() {
       ...prev,
       [name]: value
     }));
+    
+    // Limpiar errores cuando el usuario escribe
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
   };
 
   return (
@@ -161,8 +207,9 @@ export default function RegisterForm() {
       <Button 
         type="submit" 
         className="w-full bg-[#00527C] hover:bg-[#003d5c] text-white font-medium py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-[#00527C] focus:ring-offset-2"
+        disabled={loading}
       >
-        Crear cuenta
+        {loading ? "Creando cuenta..." : "Crear cuenta"}
       </Button>
       
       <p className="text-center text-gray-600 text-sm mt-4">
