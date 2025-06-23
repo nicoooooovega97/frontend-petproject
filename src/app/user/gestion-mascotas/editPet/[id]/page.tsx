@@ -1,223 +1,188 @@
-// src/app/(user)/gestion-mascotas/editPet/[id]/page.tsx
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useQuery, useMutation } from '@apollo/client';
+import { toast } from 'react-hot-toast';
+
+// 1. Importar las operaciones y tipos generados
+import { GET_PET_DETAILS_QUERY, GET_PETS_BY_OWNER_QUERY } from '@/graphql/pets/pets.operations';
+import { UPDATE_PET_MUTATION } from '@/graphql/pets/pets.operations';
+import { UpdatePetInput } from '@/types/generated/graphql';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import Button from '@/components/ui/button';
 
 export default function EditPetPage() {
-  const { petId } = useParams();
+  // useParams en App Router devuelve un objeto, por eso extraemos 'id'
+  const { id: petId } = useParams();
   const router = useRouter();
   
-  // Estado para los datos de la mascota
-  const [petData, setPetData] = useState({
+  // 2. Estado para el formulario, alineado con el DTO UpdatePetInput
+  const [formData, setFormData] = useState<UpdatePetInput>({
     name: '',
     breed: '',
     age: 0,
-    gender: 'MALE',
-    healthStatus: 'HEALTHY',
-    species: '',
-    birthDate: '',
-    color: '',
-    coatType: ''
+    photoUrl: '',
   });
 
-  // Cargar los datos de la mascota al montar el componente
-  useEffect(() => {
-    // Aquí deberías hacer una llamada a tu API para obtener los datos de la mascota
-    // Esto es un ejemplo con datos mock
-    const fetchPetData = async () => {
-      // Simulando una llamada a la API
-      const mockPets = [
-        {
-          id: '1',
-          name: 'Max',
-          breed: 'Golden Retriever',
-          age: 3,
-          gender: 'MALE',
-          healthStatus: 'HEALTHY',
-          species: 'Perro',
-          birthDate: '2020-05-15',
-          color: 'Dorado',
-          coatType: 'Largo y ondulado'
-        },
-        // ... otras mascotas
-      ];
-      
-      const pet = mockPets.find(p => p.id === petId);
-      if (pet) {
-        setPetData(pet);
+  // 3. Obtener los datos actuales de la mascota
+  const { data: petData, loading: queryLoading, error: queryError } = useQuery(GET_PET_DETAILS_QUERY, {
+    variables: { id: petId as string },
+    skip: !petId, // No ejecutar si el ID no está disponible
+    onCompleted: (data) => {
+      // 4. Rellenar el formulario cuando los datos se cargan
+      if (data?.pet) {
+        setFormData({
+          name: data.pet.name,
+          breed: data.pet.breed,
+          age: data.pet.age,
+          photoUrl: data.pet.photoUrl || '',
+        });
       }
-    };
-    
-    fetchPetData();
-  }, [petId]);
+    },
+  });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // 5. Mutación para actualizar la mascota
+  const [updatePet, { loading: mutationLoading }] = useMutation(UPDATE_PET_MUTATION, {
+    onCompleted: () => {
+      toast.success('¡Mascota actualizada correctamente!');
+      router.push('/user/gestion-mascotas/myPets'); // O a la página de detalles de la mascota
+    },
+    onError: (error) => {
+      toast.error(`Error al actualizar: ${error.message}`);
+    },
+    // Refrescar la lista de mascotas después de editar
+    refetchQueries: [{ query: GET_PETS_BY_OWNER_QUERY }],
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setPetData(prev => ({
+    setFormData(prev => ({
       ...prev,
-      [name]: value
+      // Convertir 'age' a número
+      [name]: name === 'age' ? parseInt(value, 10) || 0 : value,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
-      // Aquí iría la llamada a tu API para actualizar la mascota
-      console.log('Datos a enviar:', petData);
-      
-      // Simulando una respuesta exitosa
-      alert('Mascota actualizada correctamente');
-      router.push('/user/gestion-mascotas/myPets');
+      await updatePet({
+        variables: {
+          id: petId as string,
+          input: {
+            name: formData.name,
+            breed: formData.breed,
+            age: formData.age,
+            photoUrl: formData.photoUrl,
+          },
+        },
+      });
     } catch (error) {
-      console.error('Error al actualizar la mascota:', error);
-      alert('Error al actualizar la mascota');
+      console.error('Error en el submit de actualización:', error);
     }
   };
+  
+  // 6. Manejar estados de carga y error de la query inicial
+  if (queryLoading) return <div className="..."><LoadingSpinner /></div>;
+  if (queryError) return <div className="...">Error al cargar datos: {queryError.message}</div>;
+  if (!petData?.pet) return <div className="...">Mascota no encontrada.</div>;
 
   return (
-    <div className="min-h-screen bg-[#00527c]">
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Editar Mascota</h1>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
+          
+          {/* --- Encabezado --- */}
+          <div className="flex justify-between items-center mb-8 border-b border-gray-200 pb-4">
+            <h1 className="text-3xl font-bold text-gray-800">
+              Editar a <span className="text-[#00527C]">{petData.pet.name}</span>
+            </h1>
             <Link 
               href="/user/gestion-mascotas/myPets" 
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+              className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
             >
               Cancelar
             </Link>
           </div>
           
+          {/* --- Formulario con nuevos estilos --- */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Nombre */}
+
+              {/* Campo Nombre */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre de la Mascota
+                </label>
                 <input
-                  type="text"
+                  id="name"
+                  type="text" 
                   name="name"
-                  value={petData.name}
+                  value={formData.name ?? ''}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00527C] focus:border-transparent transition" 
                   required
                 />
               </div>
               
-              {/* Especie */}
+              {/* Campo Raza */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Especie</label>
+                <label htmlFor="breed" className="block text-sm font-medium text-gray-700 mb-1">
+                  Raza
+                </label>
                 <input
-                  type="text"
-                  name="species"
-                  value={petData.species}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
-                  required
-                />
-              </div>
-              
-              {/* Raza */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Raza</label>
-                <input
-                  type="text"
+                  id="breed"
+                  type="text" 
                   name="breed"
-                  value={petData.breed}
+                  value={formData.breed ?? ''}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00527C] focus:border-transparent transition" 
                   required
-                />
-              </div>
-              
-              {/* Edad */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Edad</label>
-                <input
-                  type="number"
-                  name="age"
-                  value={petData.age}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
-                  min="0"
-                  required
-                />
-              </div>
-              
-              {/* Género */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
-                <select
-                  name="gender"
-                  value={petData.gender}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
-                >
-                  <option value="MALE">Macho</option>
-                  <option value="FEMALE">Hembra</option>
-                </select>
-              </div>
-              
-              {/* Estado de salud */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estado de salud</label>
-                <select
-                  name="healthStatus"
-                  value={petData.healthStatus}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
-                >
-                  <option value="HEALTHY">Saludable</option>
-                  <option value="TREATMENT">En tratamiento</option>
-                </select>
-              </div>
-              
-              {/* Fecha de nacimiento */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento</label>
-                <input
-                  type="date"
-                  name="birthDate"
-                  value={petData.birthDate}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
-                />
-              </div>
-              
-              {/* Color */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
-                <input
-                  type="text"
-                  name="color"
-                  value={petData.color}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
-                />
-              </div>
-              
-              {/* Tipo de pelaje */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de pelaje</label>
-                <input
-                  type="text"
-                  name="coatType"
-                  value={petData.coatType}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#00527c] focus:border-[#00527c]"
                 />
               </div>
             </div>
+
+            {/* Campo Edad */}
+            <div>
+              <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-1">
+                Edad (años)
+              </label>
+              <input
+                id="age"
+                type="number" 
+                name="age"
+                value={formData.age ?? 0}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00527C] focus:border-transparent transition" 
+                min="0" required
+              />
+            </div>
+
+            {/* Campo Photo URL */}
+            <div>
+              <label htmlFor="photoUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                URL de la Foto (Opcional)
+              </label>
+              <input
+                id="photoUrl"
+                type="text" 
+                name="photoUrl"
+                value={formData.photoUrl ?? ''}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00527C] focus:border-transparent transition"
+              />
+            </div>
             
-            <div className="flex justify-end gap-4 pt-4">
-              <button
+            {/* --- Botones de Acción --- */}
+            <div className="flex justify-end pt-6 border-t border-gray-200">
+              <Button
                 type="submit"
-                className="bg-[#00527c] text-white px-6 py-2 rounded-lg hover:bg-[#003a5a] transition-colors"
+                disabled={mutationLoading}
               >
-                Guardar Cambios
-              </button>
+                {mutationLoading ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
             </div>
           </form>
         </div>

@@ -1,17 +1,32 @@
-// src/app/(user)/profile/page.tsx
 'use client';
+
 import { useQuery } from '@apollo/client';
+import { useState, useEffect } from 'react';
 import ProfileCard from "@/components/user/profileCard";
 import Link from "next/link";
-import { GET_USER_PROFILE } from '@/graphql/user/mutations';
+import { GET_PROFILE_QUERY } from '@/graphql/auth/auth.operations'; // Ajusta la ruta si es necesario
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function ProfilePage() {
-  const { data, loading, error } = useQuery(GET_USER_PROFILE, {
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // 1. Leemos el userId del localStorage cuando el componente se monta
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+    }
+  }, []);
+
+  // 2. Ejecutamos la query SOLO si tenemos un userId
+  const { data, loading, error } = useQuery(GET_PROFILE_QUERY, {
+    variables: { userId: userId! }, // Le pasamos la variable
+    skip: !userId, // MUY IMPORTANTE: No ejecuta la query si userId es null
     fetchPolicy: 'cache-and-network'
   });
 
-  if (loading) return (
+  // El estado de carga ahora considera si estamos esperando el ID
+  if (loading || !userId) return (
     <div className="min-h-screen flex items-center justify-center bg-[#00527C]">
       <LoadingSpinner size="lg" />
       <span className="sr-only">Cargando perfil...</span>
@@ -24,7 +39,7 @@ export default function ProfilePage() {
         <h2 className="text-xl font-bold text-red-600 mb-4">Error al cargar perfil</h2>
         <p className="text-gray-700 mb-4">{error.message}</p>
         <Link 
-          href="/user/" 
+          href="/user" // Enlace corregido
           className="inline-block bg-[#00527C] text-white py-2 px-4 rounded-md hover:bg-[#003d5a] transition"
         >
           Volver al dashboard
@@ -32,11 +47,20 @@ export default function ProfilePage() {
       </div>
     </div>
   );
+  
+  // 3. Verificamos que los datos existen y pasamos el objeto correcto
+  if (!data?.getProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#00527C] px-4">
+        <p>No se encontraron datos del perfil.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 relative bg-[#00527C]">
       <Link 
-        href="/user/" 
+        href="/user" // Enlace corregido
         className="absolute top-4 left-4 bg-white py-2 px-4 rounded-md shadow hover:bg-gray-100 transition duration-200 flex items-center text-[#00527C]"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
@@ -46,7 +70,8 @@ export default function ProfilePage() {
       </Link>
       
       <div className="w-full max-w-md">
-        <ProfileCard userData={data.me} />
+        {/* 4. Pasamos `data.getProfile` en lugar de `data.me` */}
+        <ProfileCard userData={data.getProfile} />
       </div>
     </div>
   );

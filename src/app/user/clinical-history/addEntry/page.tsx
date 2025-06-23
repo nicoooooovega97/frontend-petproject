@@ -1,89 +1,69 @@
-// src/app/(user)/historial-medico/addEntry/page.tsx
 'use client';
 
-import { useSearchParams } from 'next/navigation';
-import MedicalEntryForm from '@/components/medical/medicalEntryForm';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/context/authContext';
+import MedicalEntryForm from '@/components/medical/medicalEntryForm';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import AuthGuard from '@/components/auth/authGuard';
 
 export default function AddEntryPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const petId = searchParams.get('petId');
-  const { data: session, status } = useSession();
+  
+  // Usamos nuestro propio AuthContext
+  const { user, loading: authLoading } = useAuth();
 
-  if (status === 'loading') {
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#00527c] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
+  // Si no hay petId, mostramos un error claro.
   if (!petId) {
     return (
-      <div className="min-h-screen bg-[#00527c]">
-        <div className="container mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg p-6 text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Error: Falta ID de mascota</h1>
-            <Link 
-              href="/user" 
-              className="bg-[#00527c] text-white px-4 py-2 rounded-lg inline-flex items-center hover:bg-[#003d5a] transition-colors"
-            >
-              Volver al dashboard
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session?.user?.vetId) {
-    return (
-      <div className="min-h-screen bg-[#00527c]">
-        <div className="container mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg p-6 text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Acceso no autorizado</h1>
-            <p className="mb-4">Solo los veterinarios pueden agregar entradas médicas.</p>
-            <Link 
-              href="/user" 
-              className="bg-[#00527c] text-white px-4 py-2 rounded-lg inline-flex items-center hover:bg-[#003d5a] transition-colors"
-            >
-              Volver al dashboard
-            </Link>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg text-center">
+          <h1 className="text-xl font-bold text-red-600">Error: Falta el ID de la mascota.</h1>
+          <p className="my-4">No se puede añadir un historial sin saber a qué mascota pertenece.</p>
+          <Link href="/dashboard" className="text-blue-600 hover:underline">
+            Volver al Dashboard
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#00527c]">
-      <div className="container mx-auto px-4 py-8">
-        <Link 
-          href={`/user/historial-medico?petId=${petId}`} 
-          className="bg-white text-[#00527c] px-4 py-2 rounded-lg inline-flex items-center mb-6 hover:bg-gray-100 transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-          Volver al historial
-        </Link>
-        
-        <div className="bg-white rounded-lg p-6 shadow-lg">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Nueva Entrada Médica</h1>
-          <p className="text-gray-600 mb-6">Complete los detalles del procedimiento médico</p>
+    <AuthGuard>
+      <div className="min-h-screen bg-gray-100">
+        <div className="container mx-auto px-4 py-8">
+          <Link 
+            href={`/user/gestion-mascotas/petDetails/${petId}`} 
+            className="text-blue-600 hover:underline mb-6 inline-block"
+          >
+            ← Volver a los Detalles de la Mascota
+          </Link>
           
-          <MedicalEntryForm 
-            petId={petId} 
-            vetId={session.user.vetId} 
-            onSuccess={() => {
-              // Redirige al historial médico después de crear el registro
-              window.location.href = `/user/historial-medico?petId=${petId}`;
-            }}
-          />
+          <div className="bg-white rounded-lg p-6 shadow-lg max-w-3xl mx-auto">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Nueva Entrada Médica</h1>
+            <p className="text-gray-600 mb-6">Completa los detalles del procedimiento médico.</p>
+            
+            <MedicalEntryForm 
+              petId={petId}
+              userId={user!.id} // Sabemos que el usuario existe gracias a AuthGuard
+              onSuccess={() => {
+                // Redirigimos a la página de detalles de la mascota después del éxito
+                router.push(`/user/gestion-mascotas/petDetails/${petId}`);
+              }}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }

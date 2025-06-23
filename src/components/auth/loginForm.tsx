@@ -1,8 +1,8 @@
 'use client';
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useMutation } from '@apollo/client';
-import { LOGIN_MUTATION } from '@/graphql/auth/mutations';
+import { useAuth } from "@/context/authContext"; // Usamos nuestro hook de contexto
 import Button from "../ui/button";
 import Link from "next/link";
 import { FiMail, FiLock, FiAlertCircle, FiLoader, FiEye, FiEyeOff } from "react-icons/fi";
@@ -14,21 +14,13 @@ export default function LoginForm() {
   });
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
   
-  // Integración de Apollo Mutation
-  const [login, { loading }] = useMutation(LOGIN_MUTATION, {
-    onError: (err) => {
-      setError(err.message);
-    }
-  });
-
+  // Obtenemos la función de login y el estado de carga del contexto
+  const { login, loading } = useAuth();
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,22 +28,12 @@ export default function LoginForm() {
     setError("");
 
     try {
-      const { data } = await login({
-        variables: {
-          email: formData.email,
-          password: formData.password
-        }
-      });
-
-      if (data?.login?.token) {
-        localStorage.setItem("authToken", data.login.token);
-        // Opcional: Guardar información adicional del usuario
-        localStorage.setItem("userData", JSON.stringify(data.login.user));
-        router.push("/user");
-      }
-    } catch (err) {
-      console.error("Login error:", err);
-      // El error ya se maneja en onError de useMutation
+      // Llamamos a la función de login del contexto
+      await login(formData);
+      // La redirección y el manejo del estado se hacen en el contexto
+    } catch (err: any) {
+      // Si el login falla, el contexto lanzará un error que podemos atrapar
+      setError(err.message || "Credenciales incorrectas.");
     }
   };
 

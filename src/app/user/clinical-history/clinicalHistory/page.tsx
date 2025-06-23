@@ -8,6 +8,7 @@ import Link from "next/link";
 
 export default function ClinicalHistoryPage() {
   const { id: petId } = useParams();
+  
 
   return (
     <div className="min-h-screen bg-[#00527c]">

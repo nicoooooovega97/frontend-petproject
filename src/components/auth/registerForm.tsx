@@ -1,75 +1,57 @@
-// src/components/auth/RegisterForm.tsx
 'use client';
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Button from "../ui/button";
-import { useMutation } from "@apollo/client";
-import { REGISTER_USER } from '@/graphql/auth/mutations';
 import { toast } from 'react-hot-toast';
+// 1. Importamos el hook y los tipos GENERADOS por Codegen
+import { useRegisterMutation, RegisterDto } from '@/types/generated/graphql';
 
 export default function RegisterForm() {
-  const [formData, setFormData] = useState({
-    firstName: "",
+  // 2. Adaptamos el estado del formulario para que coincida con el DTO del backend
+  const [formData, setFormData] = useState<RegisterDto>({
+    name: "",
     lastName: "",
     email: "",
     password: "",
-    birthDate: ""
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof RegisterDto, string>>>({});
   const router = useRouter();
 
-  const [registerUser, { loading }] = useMutation(REGISTER_USER, {
+  // 3. Usamos el hook autogenerado y tipado
+  const [register, { loading }] = useRegisterMutation({
     onCompleted: (data) => {
-      if (data.registerUser.success) {
-        // Guardar el token directamente si viene en la respuesta
-        if (data.registerUser.token && typeof window !== 'undefined') {
-          localStorage.setItem('token', data.registerUser.token);
-        }
-        
-        toast.success('¡Registro exitoso! Redirigiendo...');
-        router.push("/dashboard");
-      } else {
-        toast.error(data.registerUser.message || 'Error en el registro');
+      // 4. Lógica de éxito: se ha creado el usuario
+      if (data.register.id) {
+        toast.success('¡Registro exitoso! Ahora puedes iniciar sesión.');
+        router.push("/auth/login"); // Redirigimos a la página de login
       }
     },
     onError: (error) => {
+      // Manejamos errores de red o de GraphQL
       toast.error(error.message || 'Error al conectar con el servidor');
       console.error("Registration error:", error);
     }
   });
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {};
+    const newErrors: Partial<Record<keyof RegisterDto, string>> = {};
     
-    if (!formData.firstName.trim()) newErrors.firstName = "Nombre es requerido";
-    if (!formData.lastName.trim()) newErrors.lastName = "Apellido es requerido";
+    // 5. Adaptamos las validaciones a los campos correctos
+    if (!formData.name.trim()) newErrors.name = "El nombre es requerido";
+    if (!formData.lastName.trim()) newErrors.lastName = "El apellido es requerido";
     
     if (!formData.email.trim()) {
-      newErrors.email = "Correo es requerido";
+      newErrors.email = "El correo es requerido";
     } else if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
-      newErrors.email = "Correo no válido";
+      newErrors.email = "El formato del correo no es válido";
     }
     
     if (!formData.password) {
-      newErrors.password = "Contraseña es requerida";
-    } else if (formData.password.length < 8) {
-      newErrors.password = "Mínimo 8 caracteres";
-    }
-    
-    if (!formData.birthDate) {
-      newErrors.birthDate = "Fecha de nacimiento es requerida";
-    } else {
-      const birthDate = new Date(formData.birthDate);
-      const minDate = new Date();
-      minDate.setFullYear(minDate.getFullYear() - 100);
-      const maxDate = new Date();
-      maxDate.setFullYear(maxDate.getFullYear() - 13);
-      
-      if (birthDate < minDate || birthDate > maxDate) {
-        newErrors.birthDate = "Debes tener entre 13 y 100 años";
-      }
+      newErrors.password = "La contraseña es requerida";
+    } else if (formData.password.length < 6) { // Ajustado a un mínimo razonable
+      newErrors.password = "La contraseña debe tener al menos 6 caracteres";
     }
     
     setErrors(newErrors);
@@ -78,23 +60,24 @@ export default function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
     
     try {
-      await registerUser({
+      // 6. Llamamos a la mutación con las variables correctamente tipadas
+      await register({
         variables: {
           input: {
-            firstName: formData.firstName,
+            name: formData.name,
             lastName: formData.lastName,
             email: formData.email,
             password: formData.password,
-            birthDate: formData.birthDate
           }
         }
       });
     } catch (error) {
-      // Los errores ya se manejan en onError
+      // El hook de Apollo se encarga de los errores en su callback 'onError'
+      // así que no necesitamos hacer mucho aquí, solo evitar que crashee.
+      console.log("Submit-level error catcher");
     }
   };
 
@@ -105,11 +88,10 @@ export default function RegisterForm() {
       [name]: value
     }));
     
-    // Limpiar errores cuando el usuario escribe
-    if (errors[name]) {
+    if (errors[name as keyof RegisterDto]) {
       setErrors(prev => {
         const newErrors = { ...prev };
-        delete newErrors[name];
+        delete newErrors[name as keyof RegisterDto];
         return newErrors;
       });
     }
@@ -119,21 +101,22 @@ export default function RegisterForm() {
     <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
       <h2 className="text-2xl font-bold mb-6 text-center text-[#00527C]">Registro</h2>
       
+      {/* 7. JSX ADAPTADO A LOS CAMPOS CORRECTOS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-gray-700 mb-1" htmlFor="firstName">
+          <label className="block text-gray-700 mb-1" htmlFor="name">
             Nombre *
           </label>
           <input
             type="text"
-            id="firstName"
-            name="firstName"
-            value={formData.firstName}
+            id="name"
+            name="name" // Coincide con el estado
+            value={formData.name}
             onChange={handleChange}
-            className={`w-full px-3 py-2 border rounded ${errors.firstName ? 'border-red-500' : 'border-gray-300'}`}
+            className={`w-full px-3 py-2 border rounded ${errors.name ? 'border-red-500' : 'border-gray-300'}`}
             required
           />
-          {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+          {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
         </div>
         
         <div>
@@ -143,7 +126,7 @@ export default function RegisterForm() {
           <input
             type="text"
             id="lastName"
-            name="lastName"
+            name="lastName" // Coincide con el estado
             value={formData.lastName}
             onChange={handleChange}
             className={`w-full px-3 py-2 border rounded ${errors.lastName ? 'border-red-500' : 'border-gray-300'}`}
@@ -153,6 +136,7 @@ export default function RegisterForm() {
         </div>
       </div>
       
+      {/* Email y Password (sin cambios, ya estaban bien) */}
       <div className="mb-4">
         <label className="block text-gray-700 mb-1" htmlFor="email">
           Correo electrónico *
@@ -169,7 +153,7 @@ export default function RegisterForm() {
         {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
       </div>
       
-      <div className="mb-4">
+      <div className="mb-6">
         <label className="block text-gray-700 mb-1" htmlFor="password">
           Contraseña *
         </label>
@@ -183,27 +167,8 @@ export default function RegisterForm() {
           required
         />
         {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-        <p className="text-gray-500 text-xs mt-1">Mínimo 8 caracteres</p>
       </div>
-      
-      <div className="mb-6">
-        <label className="block text-gray-700 mb-1" htmlFor="birthDate">
-          Fecha de nacimiento *
-        </label>
-        <input
-          type="date"
-          id="birthDate"
-          name="birthDate"
-          value={formData.birthDate}
-          onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded ${errors.birthDate ? 'border-red-500' : 'border-gray-300'}`}
-          required
-          max={new Date(new Date().setFullYear(new Date().getFullYear() - 13)).toISOString().split('T')[0]}
-          min={new Date(new Date().setFullYear(new Date().getFullYear() - 100)).toISOString().split('T')[0]}
-        />
-        {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>}
-      </div>
-      
+
       <Button 
         type="submit" 
         className="w-full bg-[#00527C] hover:bg-[#003d5c] text-white font-medium py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-[#00527C] focus:ring-offset-2"

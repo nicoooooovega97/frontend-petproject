@@ -1,9 +1,12 @@
-schema: http://localhost:3000/graphql
-documents:
-  - './src/graphql/**/*.ts'
-  - './src/app/**/*.tsx'
+overwrite: true
+schema: "http://localhost:3000/graphql" # URL de tu Gateway corriendo en Docker
+documents: "src/graphql/**/*.ts" # Busca queries/mutations en esta carpeta
 generates:
-  ./src/lib/types.ts:
+  src/types/generated/graphql.ts: # Archivo de salida para los tipos
     plugins:
-      - typescript
-      - typescript-operations
+      - "typescript"
+      - "typescript-operations"
+      - "typescript-react-apollo"
+    config:
+      withHooks: true # Genera hooks de React (useLoginMutation, etc.)
+      reactApolloVersion: 3
